@@ -7,7 +7,7 @@ cc_library(
     name = "hello-greet",
     # 依赖的源码
     srcs = ["hello-greet.cc"],
-    # 头文件
+    # 对外展示头文件
     hdrs = ["include/hello-greet.h"],
 )
 
@@ -20,5 +20,9 @@ cc_binary(
         "main.cc",
     ],
     # 依赖库，当前包下
-    deps = [":hello-greet"],
+    deps = [
+        ":hello-greet",
+        # 依赖其他报下的库
+        "//main/lib:hello-time",
+    ],
 )

@@ -1,1 +1,6 @@
-bazel-*/
+bazel-bazel-project
+bazel-bin
+bazel-out
+bazel-testlogs
+.DS_Store
+.vscode/*

@@ -3,4 +3,5 @@ bazel-bin
 bazel-out
 bazel-testlogs
 .DS_Store
-.vscode/*
+.vscode
+*/.vscode/

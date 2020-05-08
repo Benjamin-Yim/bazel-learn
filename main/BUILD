@@ -24,5 +24,7 @@ cc_binary(
         ":hello-greet",
         # 依赖其他报下的库
         "//main/lib:hello-time",
+        "@libevent2//:libevent2_lib",
+        "@libevent2_h//:libevent2_head",
     ],
 )

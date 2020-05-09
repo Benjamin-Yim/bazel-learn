@@ -1,4 +1,3 @@
-# 告诉Bazel项目的不同部分如何构建。工作空间中包含BUILD文件的目录称为包
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
 # 构建一个 cc_library 库，cc_library 内置规则
@@ -21,10 +20,9 @@ cc_binary(
     ],
     # 依赖库，当前包下
     deps = [
-        ":hello-greet",
+        # ":hello-greet",
         # 依赖其他报下的库
-        "//main/lib:hello-time",
-        "@libevent2//:libevent2_lib",
-        "@libevent2_h//:libevent2_head",
+        # "//main/lib:hello-time",
+        "@gtest//:main",
     ],
 )

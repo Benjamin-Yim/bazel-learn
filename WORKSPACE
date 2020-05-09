@@ -1,12 +1,9 @@
-# 此文件位于根目录中，将当前目录定义为Bazel工作空间
-new_local_repository(
-    name = "libevent2",
-    build_file = "BUILD.libevent2",
-    path = "/usr/local/lib",
-)
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-new_local_repository(
-    name = "libevent2_h",
-    build_file = "BUILD.libevent2_h",
-    path = "/usr/local/include",
+http_archive(
+    name = "gtest",
+    build_file = "@//:libevent2.BUILD",
+    # sha256 = "b58cb7547a28b2c718d1e38aee18a3659c9e3ff52440297e965f5edffe34b6d0",
+    strip_prefix = "googletest-release-1.7.0",
+    url = "https://github.com/google/googletest/archive/release-1.7.0.zip",
 )

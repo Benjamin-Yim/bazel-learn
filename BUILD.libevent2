@@ -1,5 +1,0 @@
-cc_library(
-    name = "libevent2_lib",
-    srcs = ["libevent.a","libevent_core.a","libevent_extra.a","libevent_pthreads.a"],
-    visibility = ["//visibility:public"],
-)

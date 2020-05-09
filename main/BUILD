@@ -18,11 +18,16 @@ cc_binary(
     srcs = [
         "main.cc",
     ],
+    args = ["-levent"],
+    copts = [
+        "-Iexternal/libevent2/WIN32-Code/nmake/",
+        "-Iexternal/libevent2/include",
+    ],
     # 依赖库，当前包下
     deps = [
-        # ":hello-greet",
+        ":hello-greet",
         # 依赖其他报下的库
-        # "//main/lib:hello-time",
-        "@gtest//:main",
+        "//main/lib:hello-time",
+        "@libevent2//:libevent",
     ],
 )

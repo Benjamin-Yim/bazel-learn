@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <iostream>
+#include <list>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,108 +16,95 @@
 #define PORT 7000
 #define QUEUE 20
 
-int ss;
-struct sockaddr_in client_addr;
-socklen_t length = sizeof(client_addr);
-int conns[2] =
-    {}; //定义了一个容量为2的数组来存放套接字，所以server最多只能跟2个client通信
-int z = 0;
+int fd;
+struct sockaddr_in server_addr;
+socklen_t socket_length;
+std::list<int> conns;
 
-void thread_fn() {
-  //成功返回非负描述字，出错返回-1
-  int conn = accept(ss, (struct sockaddr *)&client_addr, &length);
-  if (conn < 0) {
-    perror("connect");
-    exit(1);
-  }
-
-  //把连接保存到临时数组中;
-  conns[z] = conn;
-  z++;
-
-  fd_set rfds;
-  struct timeval
-      tv; // linux编程中，如果用到计时，可以用struct timeval获取系统时间
-  int retval, maxfd;
+void accept_fun() {
   while (1) {
-    /*把可读文件描述符的集合清空*/
-    FD_ZERO(&rfds);
-    /*把标准输入的文件描述符加入到集合中*/
-    FD_SET(0, &rfds);
-    maxfd = 0;
-    /*把当前连接的文件描述符加入到集合中*/
-    FD_SET(conn, &rfds);
-    /*找出文件描述符集合中最大的文件描述符*/
-    if (maxfd < conn) {
-      maxfd = conn;
-    }
-    /*设置超时时间*/
-    tv.tv_sec = 5; // 5秒
-    tv.tv_usec = 0;
-    /*等待聊天*/
-    retval = select(maxfd + 1, &rfds, NULL, NULL, &tv);
-    if (retval == -1) {
-      printf("select fail\n");
-      break;
-    } else if (retval == 0) {
-      printf("message is empty，waiting...\n");
-      // 加上这个无法接收到数据  需要查明原因
-      // for (int i = 0; i < z; i++) {
-      //   char buff[1024];
-      //   sprintf(buff, "%s%d", "你怎么不发信息啊", conns[i]);
-      //   send(conns[i], buff, sizeof(buff), 0);
-      // }
-      continue;
-    } else {
-      /*客户端发来了消息*/
-      if (FD_ISSET(conn, &rfds)) //判断conn是否在rfds中如果在返回非零，不再返回0
-      {
+    int acc = accept(fd, (struct sockaddr *)&server_addr, &socket_length);
+    conns.push_back(acc);
+    std::cout << "accept value:" << acc << std::endl;
+  }
+}
+
+void select_data() {
+  struct timeval tv;
+  tv.tv_sec = 5;
+  tv.tv_usec = 0;
+
+  while (1) {
+
+    std::list<int>::iterator item_iterator;
+    for (item_iterator = conns.begin(); item_iterator != conns.end();
+         ++item_iterator) {
+      fd_set rfds;
+      FD_SET(0, &rfds);
+      FD_SET(*item_iterator, &rfds);
+
+      int recval = select(*item_iterator+1, &rfds, NULL, NULL, &tv);
+      if (recval < 0) {
+        std::cout << "select fail:" << *item_iterator << std::endl;
+        break;
+      } else if (recval == 0) {
+        std::cout << "recv message is EMPTY" << std::endl;
+        continue;
+      } else {
+        // if (FD_ISSET(*item_iterator, &rfds)) {
+          
+        // }
         char buffer[1024];
-        memset(buffer, 0,
-               sizeof(buffer)); //把buffer中的所有值赋值为0，即清空buffer
-        int len = recv(conn, buffer, sizeof(buffer),
-                       0); //把接收到的数据存放于buffer中
-        if (len <= 0) {
-          std::cout << "recv message fail" << std::endl;
-          break;
-        }
-        std::cout << "accept:" << conn << ",recv message :" << buffer
-                  << std::endl;
-      }
-      /*用户输入信息了,开始处理信息并发送*/
-      if (FD_ISSET(0, &rfds)) {
-        char buf[1024] = "该你发信息了";
-        for (int i = 0; i < z; i++) {
-          send(conns[i], buf, sizeof(buf), 0);
-        }
+          int content = recv(*item_iterator, &buffer, sizeof(buffer), 0);
+          if (content <= 0) {
+            std::cout << "client close socket:" << *item_iterator << std::endl;
+            conns.remove(*item_iterator);
+            continue;
+          }
+
+          std::cout << "recv message :" << buffer << std::endl;
       }
     }
   }
-  close(conn);
+}
+
+void send_message() {
+  while (1) {
+    char buffer[1024] = "服务方来信";
+    std::list<int>::iterator item;
+    for (item = conns.begin(); item != conns.end(); ++item) {
+      send(*item, &buffer, sizeof(buffer), 0);
+    }
+    sleep(3);
+  }
 }
 
 int main(int argc, char **argv) {
-  ss = socket(AF_INET, SOCK_STREAM,
-              0); // SOCK_STREAM即tcp协议，AF_INET是IPv4套接字
-  struct sockaddr_in server_sockaddr;
-  server_sockaddr.sin_family = AF_INET;
-  server_sockaddr.sin_port = htons(PORT);
-  server_sockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind(ss, (struct sockaddr *)&server_sockaddr, sizeof(server_sockaddr)) ==
-      -1) {
-    perror("bind");
-    exit(1);
+  fd = socket(AF_INET, SOCK_STREAM, 0);
+  server_addr.sin_addr.s_addr = INADDR_ANY;
+  server_addr.sin_port = htons(PORT);
+  server_addr.sin_family = AF_INET;
+
+  int b = bind(fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+  if (b < 0) {
+    std::cout << "绑定失败" << std::endl;
+    return 0;
   }
-  if (listen(ss, QUEUE) == -1) {
-    perror("listen");
-    exit(1);
+  int l = listen(fd, QUEUE);
+  if (l < 0) {
+    std::cout << "监听失败" << std::endl;
+    return 0;
   }
-  std::thread t(thread_fn); //因为创建了两个线程所以只能连接两个client
-  std::thread t1(
-      thread_fn); //这里把收发数据都存放在thread_fn中，所以创建一个这样的线程就能使得server能多连接一个server
-  t.join();
-  t1.join();
-  close(ss);
+  std::thread t(accept_fun);
+  t.detach();
+  std::thread t1(select_data);
+  t1.detach();
+  std::thread t2(send_message);
+  t2.detach();
+  while (1) {
+    /* code */
+  }
+
   return 0;
 }
 
@@ -184,8 +172,12 @@ int client()
                 char recvbuf[BUFFER_SIZE];
                 int len;
                 len = recv(sock_cli, recvbuf, sizeof(recvbuf),0);
-                printf("%s", recvbuf);
+                printf("%s\n", recvbuf);
                 memset(recvbuf, 0, sizeof(recvbuf));
+                char sendbuf[BUFFER_SIZE] = "message 2222222222222222";
+                send(sock_cli, sendbuf, strlen(sendbuf),0); //发送
+                memset(sendbuf, 0, sizeof(sendbuf));
+                sleep(1);
             }
             /*用户输入信息了,开始处理信息并发送*/
             if(FD_ISSET(0, &rfds))

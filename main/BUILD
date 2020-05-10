@@ -18,10 +18,11 @@ cc_binary(
     srcs = [
         "main.cc",
     ],
-    args = ["-levent"],
+    args = [],
     copts = [
-        "-Iexternal/libevent2/WIN32-Code/nmake/",
-        "-Iexternal/libevent2/include",
+        # "-Iexternal/libevent2/WIN32-Code/nmake/",
+        # "-Iexternal/libevent2/include",
+        "-Iexternal/libevent2",
     ],
     # 依赖库，当前包下
     deps = [

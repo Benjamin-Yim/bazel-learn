@@ -1,141 +1,79 @@
-/*
-  This example program provides a trivial server program that listens for TCP
-  connections on port 9995.  When they arrive, it writes a short message to
-  each client connection, and closes each connection once it is flushed.
-
-  Where possible, it exits cleanly in response to a SIGINT (ctrl-c).
-*/
-
-
-#include <string.h>
-#include <errno.h>
-#include <stdio.h>
-#include <signal.h>
-#ifndef _WIN32
-#include <netinet/in.h>
-# ifdef _XOPEN_SOURCE_EXTENDED
-#  include <arpa/inet.h>
-# endif
-#include <sys/socket.h>
-#endif
-
-#include <event2/bufferevent.h>
-#include <event2/buffer.h>
-#include <event2/listener.h>
+#include "include/hello-greet.h"
+// #include <event.h>
 #include <event2/util.h>
+#include <iostream>
+#include <string.h>
+#include <unistd.h>
+
+#include <event2/buffer.h>
+#include <event2/buffer_compat.h>
 #include <event2/event.h>
+#include <event2/http.h>
+#include <event2/http_compat.h>
+#include <event2/http_struct.h>
+#include <sys/queue.h>
 
-static const char MESSAGE[] = "Hello, World!\n";
+int MAX_URL = 8192;
+void send_document_cb(struct evhttp_request *req, void *argv) {
+  // char *s = "";
+  const struct evhttp_uri *evhttp_uri = evhttp_request_get_evhttp_uri(req);
+  char url[MAX_URL];
+  evhttp_uri_join(const_cast<struct evhttp_uri *>(evhttp_uri), url, MAX_URL);
+  std::cout << "请求地址:" << url << std::endl;
 
-static const int PORT = 9995;
+  evhttp_add_header(req->output_headers, "token", "来自远方的呼唤");
+  struct evbuffer *evbuf = evbuffer_new();
+  if (!evbuf) {
+    return;
+  }
 
-static void listener_cb(struct evconnlistener *, evutil_socket_t,
-    struct sockaddr *, int socklen, void *);
-static void conn_writecb(struct bufferevent *, void *);
-static void conn_eventcb(struct bufferevent *, short, void *);
-static void signal_cb(evutil_socket_t, short, void *);
-
-int
-main(int argc, char **argv)
-{
-	struct event_base *base;
-	struct evconnlistener *listener;
-	struct event *signal_event;
-
-	struct sockaddr_in sin;
-#ifdef _WIN32
-	WSADATA wsa_data;
-	WSAStartup(0x0201, &wsa_data);
-#endif
-
-	base = event_base_new();
-	if (!base) {
-		fprintf(stderr, "Could not initialize libevent!\n");
-		return 1;
-	}
-
-	memset(&sin, 0, sizeof(sin));
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(PORT);
-
-	listener = evconnlistener_new_bind(base, listener_cb, (void *)base,
-	    LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE, -1,
-	    (struct sockaddr*)&sin,
-	    sizeof(sin));
-
-	if (!listener) {
-		fprintf(stderr, "Could not create a listener!\n");
-		return 1;
-	}
-
-	signal_event = evsignal_new(base, SIGINT, signal_cb, (void *)base);
-
-	if (!signal_event || event_add(signal_event, NULL)<0) {
-		fprintf(stderr, "Could not create/add a signal event!\n");
-		return 1;
-	}
-
-	event_base_dispatch(base);
-
-	evconnlistener_free(listener);
-	event_free(signal_event);
-	event_base_free(base);
-
-	printf("done\n");
-	return 0;
+  evbuffer_add_printf(evbuf, "来自服务端响应");
+  evhttp_send_reply(req, HTTP_OK, "Success", evbuf);
+  evbuffer_free(evbuf);
 }
 
-static void
-listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
-    struct sockaddr *sa, int socklen, void *user_data)
-{
-	struct event_base *base = user_data;
-	struct bufferevent *bev;
+void http_cb(struct evhttp_request *req, void *arg) {
+  const struct evhttp_uri *evhttp_uri = evhttp_request_get_evhttp_uri(req);
 
-	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
-	if (!bev) {
-		fprintf(stderr, "Error constructing bufferevent!");
-		event_base_loopbreak(base);
-		return;
-	}
-	bufferevent_setcb(bev, NULL, conn_writecb, conn_eventcb, NULL);
-	bufferevent_enable(bev, EV_WRITE);
-	bufferevent_disable(bev, EV_READ);
+  char url[MAX_URL];
+  const char *host = evhttp_request_get_host(req);
 
-	bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
+  evhttp_uri_join(const_cast<struct evhttp_uri *>(evhttp_uri), url, MAX_URL);
+
+  std::cout << "请求的URL" << url << std::endl;
+  struct evbuffer *evbuf = evbuffer_new();
+  if (!evbuf) {
+    std::cout << "申请缓存空间失败" << std::endl;
+    return;
+  }
+
+  evbuffer_add_printf(evbuf, "服务端接收到的地址 %s,给你回应了", url);
+
+  evhttp_send_reply(req, HTTP_OK, "Success", evbuf);
+  evbuffer_free(evbuf);
 }
 
-static void
-conn_writecb(struct bufferevent *bev, void *user_data)
-{
-	struct evbuffer *output = bufferevent_get_output(bev);
-	if (evbuffer_get_length(output) == 0) {
-		printf("flushed answer\n");
-		bufferevent_free(bev);
-	}
-}
+int main(int argc, char **argv) {
+  int http_port = 8080;
+  char *http_address = "0.0.0.0";
+  struct event_base *base = event_base_new();
+  struct evhttp *http_server = evhttp_new(base);
 
-static void
-conn_eventcb(struct bufferevent *bev, short events, void *user_data)
-{
-	if (events & BEV_EVENT_EOF) {
-		printf("Connection closed.\n");
-	} else if (events & BEV_EVENT_ERROR) {
-		printf("Got an error on the connection: %s\n",
-		    strerror(errno));/*XXX win32*/
-	}
-	/* None of the other events can happen here, since we haven't enabled
-	 * timeouts */
-	bufferevent_free(bev);
-}
+  if (NULL == http_server) {
+    std::cout << "新建 HTTP 服务器失败" << std::endl;
+    return -1;
+  }
 
-static void
-signal_cb(evutil_socket_t sig, short events, void *user_data)
-{
-	struct event_base *base = user_data;
-	struct timeval delay = { 2, 0 };
+  int ebc = evhttp_bind_socket(http_server, http_address, http_port);
 
-	printf("Caught an interrupt signal; exiting cleanly in two seconds.\n");
+  if (ebc < 0) {
+    std::cout << "启动服务器失败，绑定地址和端口失败" << std::endl;
+    return -1;
+  }
 
-	event_base_loopexit(base, &delay);
+  evhttp_set_cb(http_server, "/test", http_cb, NULL);
+  evhttp_set_gencb(http_server, send_document_cb, NULL);
+  event_base_dispatch(base);
+  evhttp_free(http_server);
+  return 0;
 }

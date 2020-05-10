@@ -70,8 +70,9 @@ int main(int argc, char **argv) {
     std::cout << "启动服务器失败，绑定地址和端口失败" << std::endl;
     return -1;
   }
-
+  // 请求地址地址 0.0.0.0:8080/test
   evhttp_set_cb(http_server, "/test", http_cb, NULL);
+  // 请求地址地址 0.0.0.0:8080/
   evhttp_set_gencb(http_server, send_document_cb, NULL);
   event_base_dispatch(base);
   evhttp_free(http_server);

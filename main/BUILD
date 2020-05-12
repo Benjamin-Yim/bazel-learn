@@ -21,7 +21,7 @@ cc_binary(
     args = [],
     copts = [
         # "-Iexternal/libevent2/WIN32-Code/nmake/",
-        # "-Iexternal/libevent2/include",
+        "-Iexternal/rapidjson/include",
         "-Iexternal/libevent2",
     ],
     # 依赖库，当前包下
@@ -30,5 +30,6 @@ cc_binary(
         # 依赖其他报下的库
         "//main/lib:hello-time",
         "@libevent2//:libevent",
+        "@rapidjson//:rapidjson_lib",
     ],
 )
